@@ -108,6 +108,20 @@ class GameWorld:
                 outcome["result"] = "no_effect"
         elif isinstance(action, dict) and action.get("type") == "roll":
             value = int(action.get("value", 1))
+            outcome["roll_value"] = value
+            bias = (value - ((20 + 1) / 2)) / 40.0
+            ok = self.checker(11, bias=bias)
+            if ok:
+                p.trust = min(100, p.trust + 4)
+                outcome["result"] = "roll_success"
+            else:
+                p.trust = max(0, p.trust - 3)
+                self.ai.escalate(1)
+                outcome["result"] = "roll_fail"
+        elif isinstance(action, dict) and action.get("type") == "roll_request":
+            # server-side authoritative roll
+            value = self.rigger(20, bias=0.0)
+            outcome["roll_value"] = value
             bias = (value - ((20 + 1) / 2)) / 40.0
             ok = self.checker(11, bias=bias)
             if ok:

@@ -41,6 +41,20 @@ async def broadcast_state(exclude=None):
                 pass
 
 
+async def broadcast(payload: dict, exclude=None):
+    text = json.dumps(payload)
+    for c in set(clients):
+        if c is exclude:
+            continue
+        try:
+            await c.send_text(text)
+        except Exception:
+            try:
+                clients.remove(c)
+            except Exception:
+                pass
+
+
 def process_event_sync(event: dict) -> dict:
     loop = asyncio.new_event_loop()
     try:
@@ -49,4 +63,4 @@ def process_event_sync(event: dict) -> dict:
         loop.close()
 
 
-__all__ = ["process_event", "process_event_sync", "register_ws", "unregister_ws", "broadcast_state", "clients"]
+__all__ = ["process_event", "process_event_sync", "register_ws", "unregister_ws", "broadcast_state", "broadcast", "clients"]

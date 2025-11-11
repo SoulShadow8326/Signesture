@@ -4,11 +4,12 @@ import asyncio, json
 from typing import Any, Dict
 from pathlib import Path
 from game import global_game
-from web_socket import process_event_sync, process_event, register_ws, unregister_ws, broadcast_state
+from web_socket import process_event_sync, process_event, register_ws, unregister_ws, broadcast_state, broadcast
 
 app = FastAPI()
 
 dist_index = Path(__file__).resolve().parent / 'dist' / 'index.html'
+dist_dir = dist_index.parent
 
 
 @app.get('/', include_in_schema=False)
@@ -62,7 +63,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue
             resp = await process_event(event)
             await websocket.send_text(json.dumps(resp))
+            # broadcast updated state to other clients
             await broadcast_state(exclude=websocket)
+            # if this event contained a roll_value in the outcome, emit an explicit roll_result command
+            try:
+                outcome = resp.get("outcome") or {}
+                if isinstance(outcome, dict) and outcome.get("roll_value") is not None:
+                    await broadcast({"command": "roll_result", "player": event.get("player"), "value": outcome.get("roll_value"), "outcome": outcome})
+            except Exception:
+                pass
     finally:
         await unregister_ws(websocket)
 
@@ -71,3 +80,13 @@ async def websocket_endpoint(websocket: WebSocket):
 def reset() -> Dict[str, Any]:
     global_game.reset()
     return JSONResponse(content={"status": "reset", "state": global_game.get_state()})
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def spa_catchall(full_path: str):
+    requested = dist_dir / full_path
+    if requested.exists() and requested.is_file():
+        return FileResponse(str(requested))
+    if dist_index.exists():
+        return FileResponse(str(dist_index), media_type='text/html')
+    return JSONResponse(content={"message": "frontend not built"}, status_code=404)

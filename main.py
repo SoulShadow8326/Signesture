@@ -1,12 +1,9 @@
 import os
 from pathlib import Path
 import uvicorn
-from fastapi.staticfiles import StaticFiles
 from routes import app
 
 dist_dir = Path(__file__).resolve().parent / 'dist'
-if dist_dir.exists():
-    app.mount('/', StaticFiles(directory=str(dist_dir), html=True), name='static')
 
 
 def run():
