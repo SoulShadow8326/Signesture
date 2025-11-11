@@ -1,11 +1,21 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 import asyncio, json
 from typing import Any, Dict
+from pathlib import Path
 from game import global_game
-from socket import process_event_sync, process_event, register_ws, unregister_ws, broadcast_state
+from web_socket import process_event_sync, process_event, register_ws, unregister_ws, broadcast_state
 
 app = FastAPI()
+
+dist_index = Path(__file__).resolve().parent / 'dist' / 'index.html'
+
+
+@app.get('/', include_in_schema=False)
+def root():
+    if dist_index.exists():
+        return FileResponse(str(dist_index), media_type='text/html')
+    return JSONResponse(content={"message": "frontend not built"}, status_code=404)
 
 
 def _run_async(coro):

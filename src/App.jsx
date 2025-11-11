@@ -3,6 +3,7 @@ import Dice from './components/dice'
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Home from './pages/home'
+import Game from './pages/game'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
             </div>
           }
         />
+        <Route path="/game" element={<Game />} />
       </Routes>
     </BrowserRouter>
   )

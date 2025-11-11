@@ -68,10 +68,13 @@ class GameWorld:
         self.log.append(f"Roll: {roll} vs {difficulty} (bias {final_bias:.2f}) -> {'success' if success else 'fail'}")
         return success
 
-    async def perform_action(self, player: str, action: str) -> Dict[str, Any]:
+    async def perform_action(self, player: str, action) -> Dict[str, Any]:
         p = self.playerA if player.upper() == "A" else self.playerB
         outcome = {"player": player, "action": action}
-        if action == "move":
+        act = action
+        if isinstance(action, dict):
+            act = action.get("type")
+        if act == "move":
             ok = self.checker(10, bias=0.05)
             if ok:
                 p.energy = max(0, p.energy - 5)
@@ -103,6 +106,17 @@ class GameWorld:
                 outcome["result"] = "assisted"
             else:
                 outcome["result"] = "no_effect"
+        elif isinstance(action, dict) and action.get("type") == "roll":
+            value = int(action.get("value", 1))
+            bias = (value - ((20 + 1) / 2)) / 40.0
+            ok = self.checker(11, bias=bias)
+            if ok:
+                p.trust = min(100, p.trust + 4)
+                outcome["result"] = "roll_success"
+            else:
+                p.trust = max(0, p.trust - 3)
+                self.ai.escalate(1)
+                outcome["result"] = "roll_fail"
         else:
             outcome["result"] = "unknown"
         self.turn += 1
