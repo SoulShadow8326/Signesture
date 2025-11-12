@@ -13,7 +13,7 @@ export default function Home() {
             <h2 className="hero-h">Two players cooperate to escape a hostile AI facility</h2>
             <p className="hero-p">Player A (Captured) is inside the game world. Player B (Operator) is outside and controls the environment using hand gestures. They must communicate and coordinate to survive.</p>
             <div className="cta-row">
-              <button className="btn">Play Demo</button>
+              <a href="/game" className="btn">Play Demo</a>
               <button className="btn ghost">Learn More</button>
             </div>
           </div>
