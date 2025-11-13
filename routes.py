@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, FileResponse
-import asyncio, json
+import asyncio
+import json
 from typing import Any, Dict
 from pathlib import Path
 from game import global_game
@@ -44,6 +45,30 @@ def action(payload: Dict[str, Any]):
         return JSONResponse(content={"error": "invalid payload"}, status_code=400)
     resp = process_event_sync(payload)
     return JSONResponse(content=resp)
+
+
+@app.post("/gesture")
+def gesture(payload: Dict[str, Any]):
+    if not isinstance(payload, dict):
+        return JSONResponse(content={"error": "invalid payload"}, status_code=400)
+    g = str(payload.get("gesture", "")).lower().strip()
+    mapping = {
+        "thumbs_up": {"command": "gesture", "type": "toggle_right"},
+        "thumbs down": {"command": "gesture", "type": "toggle_left"},
+        "thumbs_down": {"command": "gesture", "type": "toggle_left"},
+        "pointing_up": {"command": "gesture", "type": "jump_once"},
+        "pointing up": {"command": "gesture", "type": "jump_once"},
+        "victory": {"command": "gesture", "type": "stop"},
+        "closed_fist": {"command": "gesture", "type": "stop"},
+        "closed fist": {"command": "gesture", "type": "stop"},
+        "open_fist": {"command": "gesture", "type": "stop"},
+        "open fist": {"command": "gesture", "type": "stop"},
+    }
+    msg = mapping.get(g)
+    if not msg:
+        return JSONResponse(content={"error": "unknown gesture"}, status_code=400)
+    asyncio.run(broadcast(msg))
+    return JSONResponse(content={"ok": True, "sent": msg})
 
 
 @app.websocket("/ws")

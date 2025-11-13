@@ -6,6 +6,7 @@ import dirtSrc from '../assets/dirt.png'
 import mainAudioSrc from '../assets/main.mp3'
 import rollAudioSrc from '../assets/roll.mp3'
 import Dice from './dice'
+import GestureController from './gestureController'
 
 export default function Platformer({ width = 720, height = 420, speed = 160 }) {
   const TILE = 32
@@ -28,6 +29,16 @@ export default function Platformer({ width = 720, height = 420, speed = 160 }) {
   const hideTimeoutRef = useRef(null)
   const mainAudioRef = useRef(null)
   const rollAudioRef = useRef(null)
+  const wsRef = useRef(null)
+  const moveLeftRef = useRef(false)
+  const moveRightRef = useRef(false)
+  const jumpOnceRef = useRef(false)
+  const onGesture = (t) => {
+    if (t === 'left') { moveLeftRef.current = true; moveRightRef.current = false }
+    else if (t === 'right') { moveRightRef.current = true; moveLeftRef.current = false }
+    else if (t === 'palm') { moveLeftRef.current = false; moveRightRef.current = false }
+    else if (t === 'jump_once') jumpOnceRef.current = true
+  }
 
   const levels = [
     {
@@ -164,6 +175,24 @@ export default function Platformer({ width = 720, height = 420, speed = 160 }) {
   const activeKeys = useKeyboard()
 
   useEffect(() => {
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws')
+    wsRef.current = ws
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data)
+        if (data && data.command === 'gesture') {
+          const t = data.type
+          if (t === 'left') { moveLeftRef.current = true; moveRightRef.current = false }
+          else if (t === 'right') { moveRightRef.current = true; moveLeftRef.current = false }
+          else if (t === 'palm' || t === 'stop') { moveLeftRef.current = false; moveRightRef.current = false }
+          else if (t === 'jump_once') jumpOnceRef.current = true
+        }
+      } catch (e) {}
+    }
+    return () => { try { ws.close() } catch (e) {} }
+  }, [])
+
+  useEffect(() => {
     const img = new Image()
     img.src = playerSrc
     imgRef.current = img
@@ -229,10 +258,11 @@ export default function Platformer({ width = 720, height = 420, speed = 160 }) {
       if (currentLevel === 3) {
         world.lasers.forEach(l => l.angle += dt)
       }
-      const keys = activeKeys
-      if ((keys.KeyW || keys.Space) && player.onGround) player.vy = -700
-      if (keys.ArrowLeft || keys.KeyA) player.vx -= 800 * dt
-      if (keys.ArrowRight || keys.KeyD) player.vx += 800 * dt
+  const keys = activeKeys
+  if ((keys.KeyW || keys.Space) && player.onGround) player.vy = -700
+  if (jumpOnceRef.current && player.onGround) { player.vy = -700; jumpOnceRef.current = false }
+  if (keys.ArrowLeft || keys.KeyA || moveLeftRef.current) player.vx -= 800 * dt
+  if (keys.ArrowRight || keys.KeyD || moveRightRef.current) player.vx += 800 * dt
 
       player.vx *= Math.exp(-6 * dt)
 
@@ -381,6 +411,7 @@ export default function Platformer({ width = 720, height = 420, speed = 160 }) {
   return (
     <div style={{ position: 'relative' }}>
       <canvas ref={canvasRef} width={width} height={height} style={{ width: '100%', height }} />
+      <GestureController onGesture={onGesture} />
       {objectClicked && (
         <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)' }}>
           <Dice size={600} rollTo={serverRoll} onRollRequest={() => {
