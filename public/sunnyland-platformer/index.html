@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Sunnyland + Gesture Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: black;
+      }
+      #gesture-cam {
+        position: fixed;
+        right: 8px;
+        bottom: 8px;
+        width: 160px;
+        height: 120px;
+        opacity: 0.6;
+        pointer-events: none;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      #gesture-cam video,
+      #gesture-cam canvas {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="game-canvas"></canvas>
+    <div id="gesture-cam">
+      <video id="gesture-video" autoplay playsinline muted></video>
+      <canvas id="gesture-overlay"></canvas>
+    </div>
+
+    <!-- === Sunnyland Scripts === -->
+    <script src="./data/l_New_Layer_1.js"></script>
+    <script src="./data/l_New_Layer_2.js"></script>
+    <script src="./data/l_New_Layer_8.js"></script>
+    <script src="./data/l_Back_Tiles.js"></script>
+    <script src="./data/l_Decorations.js"></script>
+    <script src="./data/l_Front_Tiles.js"></script>
+    <script src="./data/l_Shrooms.js"></script>
+    <script src="./data/l_Collisions.js"></script>
+    <script src="./data/l_Grass.js"></script>
+    <script src="./data/l_Trees.js"></script>
+    <script src="./data/l_Gems.js"></script>
+    <script src="./data/collisions.js"></script>
+    <script src="./js/utils.js"></script>
+    <script src="./classes/CollisionBlock.js"></script>
+    <script src="./classes/Platform.js"></script>
+    <script src="./classes/Player.js"></script>
+    <script src="./classes/Oposum.js"></script>
+    <script src="./classes/Eagle.js"></script>
+    <script src="./classes/Sprite.js"></script>
+    <script src="./classes/Heart.js"></script>
+    <script src="./js/index.js"></script>
+    <script src="./js/eventListeners.js"></script>
+
+    <!-- === Gesture Controller === -->
+    <script type="module">
+  import {
+    GestureRecognizer,
+    FilesetResolver,
+    DrawingUtils,
+  } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
+
+  const video = document.getElementById("gesture-video");
+  const canvas = document.getElementById("gesture-overlay");
+  const ctx = canvas.getContext("2d");
+
+  let lastGesture = null;
+  let holdCount = 0;
+  const MIN_FRAMES = 5; 
+
+  async function initRecognizer() {
+    try {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+      );
+
+      const recognizer = await GestureRecognizer.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+        },
+        runningMode: "VIDEO",
+      });
+
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      await video.play();
+
+      console.log("✅ Camera + gesture model ready");
+      loop(recognizer);
+    } catch (e) {
+      console.error("Gesture recognizer init failed:", e);
+    }
+  }
+
+  function loop(recognizer) {
+    function frame() {
+      if (!video.videoWidth) {
+        requestAnimationFrame(frame);
+        return;
+      }
+
+      const now = Date.now();
+      const res = recognizer.recognizeForVideo(video, now);
+      draw(res);
+      interpret(res);
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function draw(res) {
+    const w = (canvas.width = video.videoWidth);
+    const h = (canvas.height = video.videoHeight);
+    ctx.clearRect(0, 0, w, h);
+
+    if (!res?.landmarks) return;
+
+    const draw = new DrawingUtils(ctx);
+    for (const lm of res.landmarks) {
+      draw.drawConnectors(lm, GestureRecognizer.HAND_CONNECTIONS, {
+        color: "#00FF00",
+        lineWidth: 2,
+      });
+      draw.drawLandmarks(lm, { color: "#FF0000", lineWidth: 1 });
+    }
+  }
+
+
+  function mapGesture(name) {
+    switch (name) {
+      case "Closed_Fist":
+        return "a";
+      case "Open_Palm":
+        return "d";
+      case "Thumb_Down":
+        return "s";
+      case "Pointing_Up":
+        return "w"; 
+      case "Victory":
+        return " ";
+      default:
+        return null;
+    }
+  }
+
+  function sendKey(type, key) {
+    const evt = new KeyboardEvent(type, { key, bubbles: true });
+    window.dispatchEvent(evt);
+  }
+
+  function interpret(res) {
+    if (!res || !res.gestures || !res.gestures.length) return;
+
+    const gesture = res.gestures[0][0].categoryName;
+    const mapped = mapGesture(gesture);
+
+    if (!mapped) {
+      if (lastGesture) {
+        sendKey("keyup", lastGesture);
+        lastGesture = null;
+        holdCount = 0;
+      }
+      return;
+    }
+
+    if (mapped === lastGesture) {
+      holdCount++;
+    } else {
+      holdCount = 1;
+      lastGesture = mapped;
+    }
+
+    if (holdCount < MIN_FRAMES) return;
+
+    if (["a", "d", "s"].includes(mapped)) {
+      sendKey("keydown", mapped);
+    } else {
+      sendKey("keydown", mapped);
+      setTimeout(() => sendKey("keyup", mapped), 50);
+      holdCount = 0;
+      lastGesture = null;
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", initRecognizer);
+</script>
+>
+  </body>
+</html>
